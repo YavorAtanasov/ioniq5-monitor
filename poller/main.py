@@ -42,7 +42,9 @@ def poll_status(vm, vehicle):
         "is_charging": g(vehicle, "ev_battery_is_charging"),
         "is_plugged_in": g(vehicle, "ev_battery_is_plugged_in"),
         "charging_power_kw": g(vehicle, "ev_charging_power"),
-        "charge_time_remain_min": g(vehicle, "ev_estimated_current_charge_duration"),
+        "charge_time_dc_min": g(vehicle, "ev_estimated_fast_charge_duration"),
+        "charge_time_station_min": g(vehicle, "ev_estimated_station_charge_duration"),
+        "charge_time_mobile_min": g(vehicle, "ev_estimated_portable_charge_duration"),
         "ac_on": g(vehicle, "air_control_is_on"),
         "defrost_on": g(vehicle, "defrost_is_on"),
         "door_locked": g(vehicle, "is_locked"),
@@ -164,7 +166,7 @@ def poll_energy_daily(vm, vehicle, state):
         kwh_per_100km = (
             (consumed_kwh / distance) * 100 if consumed_kwh is not None and distance else None
         )
-        day_ts = datetime.strptime(yyyymmdd, "%Y%m%d").replace(hour=23, tzinfo=timezone.utc)
+        day_ts = datetime.strptime(yyyymmdd, "%Y%m%d").replace(hour=12, tzinfo=timezone.utc)
         write_point(
             "energy_daily",
             {
@@ -185,12 +187,16 @@ def poll_energy_daily(vm, vehicle, state):
 
 # ---------------- SCHEDULER ----------------
 def main():
+    print("Starting up...", flush=True)
     state = load_state()
+    print("Loaded local state, connecting to Bluelink/Kia Connect...", flush=True)
     vm = get_vehicle_manager()
+    print("VehicleManager created, logging in (this can take a few seconds)...", flush=True)
     vm.check_and_refresh_token()
+    print("Logged in, fetching vehicle list...", flush=True)
     vm.update_all_vehicles_with_cached_state()
     vehicle = get_target_vehicle(vm)
-    print(f"Poller ready for vehicle id={vehicle.id}")
+    print(f"Poller ready for vehicle id={vehicle.id}", flush=True)
 
     status_minutes = int(os.environ.get("STATUS_POLL_MINUTES", "60"))
     trip_minutes = int(os.environ.get("TRIP_POLL_MINUTES", "30"))
@@ -229,4 +235,14 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    import traceback
+    try:
+        main()
+    except SystemExit as e:
+        print(f"Exiting: {e}", flush=True)
+        sys.exit(1)
+    except Exception:
+        print("FATAL - unhandled exception:", flush=True)
+        traceback.print_exc()
+        sys.exit(1)

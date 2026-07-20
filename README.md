@@ -106,6 +106,11 @@ A Geomap panel plots `latitude`/`longitude` from `vehicle_status` (auto-centers 
 ## Fixed: poller logs showing up empty
 `docker compose logs -f poller` could show nothing at all even while the poller was working fine in the background. Cause: Python fully buffers `print()` output when stdout isn't attached to a terminal (always true in Docker), so nothing reaches the log driver until the buffer fills up - which might never happen for a long-running loop like this one. Fixed by setting `PYTHONUNBUFFERED=1` and running `python -u main.py` in the Dockerfile, so every print flushes immediately.
 
+## Fixed: timezone bug, trips table ordering, and real charge-time data
+- **`energy_daily` timestamps showing the wrong day**: points were stamped at `23:00 UTC` on their tagged date, which crosses into the next calendar day for UTC+ timezones (e.g. Bulgaria: `23:00 UTC` on the 19th displays as `02:00` on the 20th in local time). Changed to `12:00 UTC` (noon), matching what `trips` already used - noon UTC stays on the same calendar day for any realistic timezone.
+- **Recent Trips table showing older trips while newer ones existed**: the query had no explicit sort, so row order was arbitrary rather than newest-first. Added `sort(columns: ["_time"], desc: true)` plus a row limit.
+- **Time to Full Charge showing 0**: this wasn't actually a bug - `ev_estimated_current_charge_duration` genuinely resets to 0 whenever the car isn't actively charging (confirmed against the library's own community discussions). Replaced it with the three fields that always have a value regardless of charging state: `ev_estimated_fast_charge_duration` (DC), `ev_estimated_station_charge_duration` (AC charging station), and `ev_estimated_portable_charge_duration` (mobile/ICCB charger) - now shown as three separate lines on "Time to Full Charge by Method".
+
 ## Ideas not yet wired up but easy to add
 - **Cost tracking**: multiply `consumed_kwh` by your electricity tariff (a day/night split could turn this into a real cost dashboard given your off-peak strategy).
 - **Efficiency vs. temperature**: pull local weather (e.g. Open-Meteo, no key needed) and correlate kWh/100km against outside temp.
