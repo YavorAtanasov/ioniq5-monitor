@@ -1,0 +1,732 @@
+{
+  "id": null,
+  "uid": "ioniq5-overview",
+  "title": "Ioniq 5 Monitor",
+  "tags": [
+    "ioniq5",
+    "hyundai-kia-connect-api",
+    "ev"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "5m",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "State of Charge (%)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-ioniq5"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"vehicle_status\")\n  |> filter(fn: (r) => r._field == \"soc_pct\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> yield(name: \"soc_pct\")",
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "Range (km)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-ioniq5"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"vehicle_status\")\n  |> filter(fn: (r) => r._field == \"range_km\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> yield(name: \"range_km\")",
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "lengthkm",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "title": "Avg / Max Speed per Day (km/h)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-ioniq5"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"trips\")\n  |> filter(fn: (r) => r._field == \"avg_speed_kmh\")\n  |> drop(columns: [\"trip_index\", \"_start\", \"_stop\"])\n  |> group(columns: [\"_field\"])\n  |> aggregateWindow(every: 1d, fn: mean, createEmpty: false)\n  |> yield(name: \"avg_speed_kmh\")",
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        },
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"trips\")\n  |> filter(fn: (r) => r._field == \"max_speed_kmh\")\n  |> drop(columns: [\"trip_index\", \"_start\", \"_stop\"])\n  |> group(columns: [\"_field\"])\n  |> aggregateWindow(every: 1d, fn: max, createEmpty: false)\n  |> yield(name: \"max_speed_kmh\")",
+          "refId": "B",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "velocitykmh",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "title": "Daily Distance Driven (km)",
+      "type": "barchart",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-ioniq5"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"trips\")\n  |> filter(fn: (r) => r._field == \"distance_km\")\n  |> drop(columns: [\"trip_index\", \"_start\", \"_stop\"])\n  |> group(columns: [\"_field\"])\n  |> aggregateWindow(every: 1d, fn: sum, createEmpty: false)\n  |> yield(name: \"distance_km\")",
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "lengthkm",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "title": "Energy Used vs Recuperated per Day (kWh)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-ioniq5"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"energy_daily\")\n  |> filter(fn: (r) => r._field == \"consumed_kwh\")\n  |> drop(columns: [\"date\", \"_start\", \"_stop\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])\n  |> yield(name: \"consumed_kwh\")",
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        },
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"energy_daily\")\n  |> filter(fn: (r) => r._field == \"regen_kwh\")\n  |> drop(columns: [\"date\", \"_start\", \"_stop\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])\n  |> yield(name: \"regen_kwh\")",
+          "refId": "B",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kwatth",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "title": "Efficiency (kWh / 100km) per Day",
+      "type": "timeseries",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-ioniq5"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"energy_daily\")\n  |> filter(fn: (r) => r._field == \"kwh_per_100km\")\n  |> drop(columns: [\"date\", \"_start\", \"_stop\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])\n  |> yield(name: \"kwh_per_100km\")",
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "title": "Daily Energy Breakdown",
+      "type": "barchart",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-ioniq5"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"energy_daily\")\n  |> filter(fn: (r) => r._field == \"engine_kwh\")\n  |> drop(columns: [\"date\", \"_start\", \"_stop\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])\n  |> yield(name: \"engine_kwh\")",
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        },
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"energy_daily\")\n  |> filter(fn: (r) => r._field == \"climate_kwh\")\n  |> drop(columns: [\"date\", \"_start\", \"_stop\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])\n  |> yield(name: \"climate_kwh\")",
+          "refId": "B",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        },
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"energy_daily\")\n  |> filter(fn: (r) => r._field == \"devices_kwh\")\n  |> drop(columns: [\"date\", \"_start\", \"_stop\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])\n  |> yield(name: \"devices_kwh\")",
+          "refId": "C",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        },
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"energy_daily\")\n  |> filter(fn: (r) => r._field == \"battery_care_kwh\")\n  |> drop(columns: [\"date\", \"_start\", \"_stop\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])\n  |> yield(name: \"battery_care_kwh\")",
+          "refId": "D",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kwatth",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "title": "12V Battery (%)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-ioniq5"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"vehicle_status\")\n  |> filter(fn: (r) => r._field == \"battery12v_pct\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> yield(name: \"battery12v_pct\")",
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "title": "Charging Power (kW)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-ioniq5"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"vehicle_status\")\n  |> filter(fn: (r) => r._field == \"charging_power_kw\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> yield(name: \"charging_power_kw\")",
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kwatt",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "title": "Odometer (km)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-ioniq5"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"vehicle_status\")\n  |> filter(fn: (r) => r._field == \"odometer_km\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> yield(name: \"odometer_km\")",
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "lengthkm",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "title": "Recent Trips",
+      "type": "table",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-ioniq5"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 40
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"trips\")\n  |> filter(fn: (r) => r._field == \"distance_km\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> yield(name: \"distance_km\")",
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        },
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"trips\")\n  |> filter(fn: (r) => r._field == \"avg_speed_kmh\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> yield(name: \"avg_speed_kmh\")",
+          "refId": "B",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        },
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"trips\")\n  |> filter(fn: (r) => r._field == \"max_speed_kmh\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> yield(name: \"max_speed_kmh\")",
+          "refId": "C",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        },
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"trips\")\n  |> filter(fn: (r) => r._field == \"duration_min\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> yield(name: \"duration_min\")",
+          "refId": "D",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        },
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"trips\")\n  |> filter(fn: (r) => r._field == \"idle_min\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> yield(name: \"idle_min\")",
+          "refId": "E",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "title": "Doors / Trunk / Hood Open",
+      "type": "state-timeline",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-ioniq5"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"vehicle_status\")\n  |> filter(fn: (r) => r._field == \"door_fl_open\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> yield(name: \"door_fl_open\")",
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        },
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"vehicle_status\")\n  |> filter(fn: (r) => r._field == \"door_fr_open\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> yield(name: \"door_fr_open\")",
+          "refId": "B",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        },
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"vehicle_status\")\n  |> filter(fn: (r) => r._field == \"door_bl_open\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> yield(name: \"door_bl_open\")",
+          "refId": "C",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        },
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"vehicle_status\")\n  |> filter(fn: (r) => r._field == \"door_br_open\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> yield(name: \"door_br_open\")",
+          "refId": "D",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        },
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"vehicle_status\")\n  |> filter(fn: (r) => r._field == \"trunk_open\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> yield(name: \"trunk_open\")",
+          "refId": "E",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        },
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"vehicle_status\")\n  |> filter(fn: (r) => r._field == \"hood_open\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> yield(name: \"hood_open\")",
+          "refId": "F",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 13,
+      "title": "Locked / Ignition State",
+      "type": "state-timeline",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-ioniq5"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 48
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"vehicle_status\")\n  |> filter(fn: (r) => r._field == \"door_locked\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> yield(name: \"door_locked\")",
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        },
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"vehicle_status\")\n  |> filter(fn: (r) => r._field == \"ignition_on\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> yield(name: \"ignition_on\")",
+          "refId": "B",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 14,
+      "title": "Climate: AC / Defrost",
+      "type": "state-timeline",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-ioniq5"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 56
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"vehicle_status\")\n  |> filter(fn: (r) => r._field == \"ac_on\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> yield(name: \"ac_on\")",
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        },
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"vehicle_status\")\n  |> filter(fn: (r) => r._field == \"defrost_on\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> yield(name: \"defrost_on\")",
+          "refId": "B",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 15,
+      "title": "Time to Full Charge (min)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-ioniq5"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 56
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"vehicle_status\")\n  |> filter(fn: (r) => r._field == \"charge_time_remain_min\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> yield(name: \"charge_time_remain_min\")",
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "m",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 16,
+      "title": "Tire Pressure Warning",
+      "type": "state-timeline",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-ioniq5"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 64
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"vehicle_status\")\n  |> filter(fn: (r) => r._field == \"tire_warning\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> yield(name: \"tire_warning\")",
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 17,
+      "title": "Car Location",
+      "type": "geomap",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-ioniq5"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 72
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"vehicle\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"vehicle_status\")\n  |> filter(fn: (r) => r._field == \"latitude\" or r._field == \"longitude\")\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> pivot(rowKey: [\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> filter(fn: (r) => exists r.latitude and exists r.longitude)\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 500)\n  |> yield(name: \"location\")",
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-ioniq5"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "options": {
+        "view": {
+          "id": "coords",
+          "lat": 45,
+          "lon": 15,
+          "zoom": 4
+        },
+        "controls": {
+          "showZoom": true,
+          "mouseWheelZoom": true,
+          "showAttribution": true
+        },
+        "basemap": {
+          "type": "carto",
+          "name": "Basemap"
+        },
+        "layers": [
+          {
+            "type": "markers",
+            "name": "Vehicle position",
+            "config": {
+              "style": {
+                "size": {
+                  "fixed": 6
+                },
+                "color": {
+                  "fixed": "#00b4ff"
+                },
+                "opacity": 0.8
+              },
+              "showLegend": false
+            },
+            "location": {
+              "mode": "coords",
+              "latitude": "latitude",
+              "longitude": "longitude"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

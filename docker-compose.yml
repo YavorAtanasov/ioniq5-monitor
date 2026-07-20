@@ -1,0 +1,63 @@
+services:
+  influxdb:
+    image: influxdb:2.7
+    container_name: ioniq5-influxdb
+    restart: unless-stopped
+    # Fixes containers exiting with code 159 (SIGSYS) on some Raspberry Pi
+    # kernels: Docker's default seccomp filter blocks a syscall this Go
+    # binary makes that isn't in the default arm64 allow-list on this
+    # kernel. Disabling seccomp here is a known, low-risk workaround for
+    # this specific issue - not needed on amd64.
+    security_opt:
+      - seccomp:unconfined
+    ports:
+      - "8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUX_ADMIN_USER:-admin}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_ADMIN_PASSWORD:-changeme123}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUX_ORG:-ioniq5}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_BUCKET:-vehicle}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN:-my-super-secret-admin-token}
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+      - influxdb-config:/etc/influxdb2
+
+  grafana:
+    image: grafana/grafana-oss:11.2.0
+    container_name: ioniq5-grafana
+    restart: unless-stopped
+    # Same SIGSYS/seccomp fix as influxdb above.
+    security_opt:
+      - seccomp:unconfined
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-changeme123}
+      GF_INSTALL_PLUGINS: ""
+      INFLUX_ORG: ${INFLUX_ORG:-ioniq5}
+      INFLUX_BUCKET: ${INFLUX_BUCKET:-vehicle}
+      INFLUX_TOKEN: ${INFLUX_TOKEN:-my-super-secret-admin-token}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - influxdb
+
+  poller:
+    build: ./poller
+    container_name: ioniq5-poller
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      - influxdb
+    volumes:
+      - ./poller/data:/app/data   # local cache: last-polled-date, raw dumps
+
+volumes:
+  influxdb-data:
+  influxdb-config:
+  grafana-data:
