@@ -91,7 +91,7 @@ def poll_trips(vm, vehicle, state):
             vm.update_day_trip_info(vehicle.id, yyyymmdd)
             day_info = g(vehicle, "day_trip_info")
             trip_list = g(day_info, "trip_list", []) if day_info else []
-            day_ts = datetime.strptime(yyyymmdd, "%Y%m%d").replace(hour=12, tzinfo=timezone.utc)
+            day_ts = datetime.strptime(yyyymmdd, "%Y%m%d").replace(hour=00, tzinfo=timezone.utc)
             for idx, trip in enumerate(trip_list):
                 fields = {
                     "distance_km": g(trip, "distance"),
@@ -166,7 +166,7 @@ def poll_energy_daily(vm, vehicle, state):
         kwh_per_100km = (
             (consumed_kwh / distance) * 100 if consumed_kwh is not None and distance else None
         )
-        day_ts = datetime.strptime(yyyymmdd, "%Y%m%d").replace(hour=12, tzinfo=timezone.utc)
+        day_ts = datetime.strptime(yyyymmdd, "%Y%m%d").replace(hour=00, tzinfo=timezone.utc)
         write_point(
             "energy_daily",
             {
