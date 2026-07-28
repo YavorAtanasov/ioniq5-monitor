@@ -1,136 +1,167 @@
-# Ioniq 5 self-monitoring stack (hyundai_kia_connect_api + InfluxDB + Grafana)
+# Ioniq 5 Monitor
 
-## Why not bluelinky?
-We switched away from bluelinky (Node.js) because its EU login has been broken on and off since August 2025 due to Hyundai/Kia rotating their EU auth backend faster than the library gets patched (see [issue #295](https://github.com/Hacksore/bluelinky/issues/295), [#307](https://github.com/Hacksore/bluelinky/issues/307), [#308](https://github.com/Hacksore/bluelinky/issues/308), all still open). We're now using **`hyundai_kia_connect_api`** (Python) instead — the library underneath Home Assistant's Kia Connect/Hyundai Bluelink integration, which has kept working through the same period (releases as recently as May 2026).
+Self-hosted dashboard for your Hyundai/Kia electric vehicle — state of charge, range, efficiency, daily energy breakdown, trip history, location, and more — running entirely on your own hardware with no cloud service or subscription involved.
 
-## Architecture
-- **poller** (Python) — logs into Bluelink via `hyundai_kia_connect_api`, polls status + trip data on a schedule, writes to InfluxDB.
-- **InfluxDB 2.x** — time-series storage.
-- **Grafana** — pre-provisioned dashboard "Ioniq 5 Monitor".
+It works by polling the same unofficial cloud API that the Bluelink / Kia Connect mobile apps use, storing the data in a local time-series database, and visualizing it with Grafana.
 
-## Running this on a Raspberry Pi 4
-No changes needed to `docker-compose.yml` — `influxdb:2.7`, `grafana/grafana-oss:11.2.0`, and `python:3.12-slim` are all officially published for `arm64` as well as `amd64`, so Docker automatically pulls the right build for whatever machine it's running on. A few things specific to the Pi are worth knowing before you deploy, though:
+![stack](https://img.shields.io/badge/stack-Python%20%2B%20InfluxDB%20%2B%20Grafana-blue)
 
-1. **You need the 64-bit OS.** Run `uname -m` — it must print `aarch64`, not `armv7l`. If you're on 32-bit Raspberry Pi OS, InfluxDB 2.x has no maintained image for that architecture at all (only community forks, which we're not using here). If needed, reflash with **Raspberry Pi OS (64-bit)** via Raspberry Pi Imager, or Ubuntu Server 24.04 LTS (arm64).
+> **Disclaimer**: This project is not affiliated with, endorsed by, or supported by Hyundai, Kia, or Genesis. It uses an unofficial, reverse-engineered API via the [`hyundai_kia_connect_api`](https://github.com/Hyundai-Kia-Connect/hyundai_kia_connect_api) library (the same one behind the popular Home Assistant integration). That API can change or break at any time without notice, and using it is entirely at your own risk.
 
-2. **Install Docker + Compose:**
+## What you get
+
+A pre-built Grafana dashboard with:
+
+- **State of charge & range** over time
+- **Efficiency**: daily kWh/100km, plus a rolling 30-day trend gauge
+- **Daily energy breakdown**: how much of your consumption was driving vs. climate vs. onboard electronics vs. battery conditioning — both in kWh and as a percentage
+- **Trips**: distance, average/max speed, idle-time ratio per day
+- **Charging**: charging power, time-to-full by method (AC / DC / mobile), your configured charge limits and the range they translate to
+- **Schedule**: off-peak charging window and departure/preconditioning schedule, at a glance
+- **Vehicle state**: doors/trunk/hood, lock state, ignition, climate control, tire pressure warnings, 12V battery health
+- **Location**: last known position on a map
+
+All of it lives in your own InfluxDB instance, so it's yours to keep, query, or export — no third party ever sees it.
+
+## How it works
+
+```
+Bluelink / Kia Connect account
+        │  (unofficial API, via hyundai_kia_connect_api)
+        ▼
+   poller (Python)  ──writes──▶  InfluxDB 2.x  ──queries──▶  Grafana dashboard
+```
+
+- **poller** — a small Python service that logs into your account and polls vehicle status, trip history, and daily energy stats on a schedule.
+- **InfluxDB** — stores everything as time-series data.
+- **Grafana** — a pre-provisioned dashboard, ready as soon as the stack starts.
+
+Everything runs in Docker, on your own machine (a Raspberry Pi, a home server, a NAS, whatever you've got).
+
+## Before you start: a note on API rate limits
+
+Hyundai and Kia don't publish an official rate limit, but their backend **will** temporarily lock you out (usually with an error like *"maximum number of daily vehicle checks exceeded"*) if too many requests come from your account in a day — including from the official app itself. Community-sourced numbers ([bluelinky wiki](https://github.com/Hacksore/bluelinky/wiki/API-Rate-Limits)) suggest roughly:
+
+| Region | Approx. daily limit |
+|--------|---------------------|
+| EU     | ~200 requests |
+| USA    | ~30 requests (≈10 per action type) |
+| CA     | not well documented; ~90s minimum between vehicle commands |
+
+These aren't official, aren't guaranteed to stay accurate, and can vary by account. A few important, related facts:
+
+- **Cached vs. forced requests are not equal.** A *cached* status check just reads the last data Hyundai/Kia's servers already have — cheap, and doesn't touch the car. A *forced refresh* wakes the car up over the mobile network to get fresh data — much more expensive, and the main known cause of unnecessary 12V battery drain on these cars.
+- **This project defaults to being conservative** to stay well under any limit while running 24/7:
+  - Status polling: every 60 minutes, **cached only**.
+  - Trip polling: every 30 minutes, **cached only**.
+  - Daily energy breakdown: every 4 hours, and this one *does* force a refresh (it's the only data that requires it) — kept infrequent deliberately.
+- **Other apps count against the same limit.** If you also use the official Bluelink/Kia Connect app, a third-party integration (Home Assistant, Optiwatt, etc.), or run this monitor from more than one place at once, they all share the same per-account daily allowance.
+- If you get locked out, it typically clears after 24 hours. If it keeps happening, increase `STATUS_POLL_MINUTES` / `TRIP_POLL_MINUTES` / `ENERGY_POLL_MINUTES` in your `.env` before doing anything else.
+
+**In short: the defaults are already tuned to be safe for continuous use. If you make polling more frequent, you're trading dashboard freshness for a real risk of getting rate-limited or draining your 12V battery.**
+
+## Requirements
+
+- Docker + Docker Compose
+- A Hyundai Bluelink, Kia Connect, or Genesis Connect account with a vehicle already registered
+- ~2GB RAM free for the stack (see the Raspberry Pi notes below if you're tight on resources)
+
+## Quick start
+
+1. **Clone the repo and set up your credentials:**
    ```bash
-   curl -sSL https://get.docker.com | sh
-   sudo usermod -aG docker $USER
-   # log out and back in for the group change to take effect
-   sudo apt install -y docker-compose-plugin
+   git clone https://github.com/YavorAtanasov/ioniq5-monitor.git
+   cd ioniq5-monitor
+   cp .env.example .env
+   ```
+   Edit `.env` with your Bluelink/Kia Connect username, password, PIN, region (`EU`/`US`/`CA`), and brand (`hyundai`/`kia`/`genesis`).
+
+2. **(Recommended) Confirm your account's real field names first.** The underlying API varies subtly by brand, region, and car generation, so it's worth a one-time check before trusting any numbers:
+   ```bash
+   cd poller
+   python3 -m venv venv
+   source venv/bin/activate        # on Windows: venv\Scripts\activate
+   pip install -r requirements.txt
+   python dump_fields.py
+   cd ..
+   ```
+   This writes everything your account actually returns to `poller/data/raw-*.json`, so you can sanity-check it if a panel ever looks wrong.
+
+3. **Launch the stack:**
+   ```bash
+   docker compose up -d
    ```
 
-3. **RAM**: InfluxDB + Grafana + the poller together are comfortable on a 4GB or 8GB Pi 4. A 2GB model will likely struggle once Grafana is actively rendering dashboards — if that's what you have, consider it a soft requirement to upgrade, or at least keep an eye on `docker stats` under load.
+4. **Open the dashboard:**
+   - Grafana: [http://localhost:3000](http://localhost:3000) (login with `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` from your `.env`) — the "Ioniq 5 Monitor" dashboard is auto-provisioned and ready immediately.
+   - InfluxDB UI: [http://localhost:8086](http://localhost:8086), if you want to query the raw data directly.
 
-4. **SD card wear**: InfluxDB writes fairly often (every status/trip poll). SD cards have limited write endurance and are also the most common failure point on long-running Pi projects. If this is going to run for months unattended, consider pointing the `influxdb-data` volume at a USB-attached SSD instead of the SD card — e.g. mount an SSD at `/mnt/ssd` and change the `influxdb-data` volume in `docker-compose.yml` to a bind mount there instead of a named Docker volume.
+It can take a few polling cycles (up to an hour, by default) before the dashboard has enough data to look interesting — the first few charts will fill in as the poller runs.
 
-5. **Package installs**: the poller's `Dockerfile` now points pip at [piwheels](https://www.piwheels.org/), which hosts prebuilt ARM wheels for Python packages — without it, some dependencies would compile from source on the Pi's CPU, which is slow. This is harmless on non-ARM machines too (pip just won't find a match there and falls through to PyPI normally).
+## Configuration reference (`.env`)
 
-6. **Build and run, same as any other machine:**
-   ```bash
-   docker compose up -d --build
-   ```
+| Variable | What it does |
+|---|---|
+| `BLUELINK_USERNAME` / `BLUELINK_PASSWORD` / `BLUELINK_PIN` | Your Bluelink/Kia Connect/Genesis Connect account credentials |
+| `BLUELINK_BRAND` | `hyundai`, `kia`, or `genesis` |
+| `BLUELINK_REGION` | `EU`, `US`, or `CA` |
+| `BLUELINK_VIN` | (Optional) pick a specific vehicle if your account has more than one |
+| `STATUS_POLL_MINUTES` | How often to check live status (cached, default 60) |
+| `TRIP_POLL_MINUTES` | How often to check for new trips (cached, default 30) |
+| `ENERGY_POLL_MINUTES` | How often to pull the daily energy breakdown (forces a refresh, default 240 — see the rate-limit note above) |
+| `INFLUX_*` / `GRAFANA_*` | Storage/dashboard credentials — the defaults in `.env.example` work out of the box for local/home use, but change the passwords if this will be reachable from outside your LAN |
 
-7. **If `influxdb`/`grafana` containers keep exiting with code 159**: that's signal 31 (`SIGSYS` — "bad system call"), meaning Docker's default seccomp filter is blocking a syscall one of these Go binaries makes that isn't in the default arm64 allow-list on this particular Raspberry Pi kernel. This isn't an outdated-Docker issue (confirmed on Docker 28.5.2 / kernel 6.12.48) - it's specific to Grafana/InfluxDB's syscall use on this kernel build. `docker-compose.yml` already sets `security_opt: seccomp:unconfined` on both services to work around it. This does loosen container syscall sandboxing slightly - reasonable for a home LAN project like this, worth knowing about if you're deploying somewhere more exposed.
+## Running on a Raspberry Pi
 
-## 1. First run: confirm the real field names
-This library's `Vehicle` object fields aren't fully documented and can vary by brand/region/car generation. **Before trusting any numbers**, run the inspector once:
+This stack runs comfortably on a Raspberry Pi 4 (4GB+, 64-bit OS). A few things worth knowing:
 
-```bash
-cd poller
-python3 -m venv venv
-source venv/bin/activate        # on Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
+- **You need the 64-bit OS.** Run `uname -m` — it must print `aarch64`. InfluxDB 2.x has no maintained image for 32-bit ARM. Reflash with Raspberry Pi OS (64-bit) or Ubuntu Server 24.04 LTS (arm64) if needed.
+- **Install Docker:**
+  ```bash
+  curl -sSL https://get.docker.com | sh
+  sudo usermod -aG docker $USER   # log out/in afterward
+  sudo apt install -y docker-compose-plugin
+  ```
+- **RAM**: comfortable on 4GB/8GB models; a 2GB Pi may struggle once Grafana is actively rendering.
+- **SD card wear**: InfluxDB writes fairly often. For long-term unattended use, consider pointing the `influxdb-data` volume at a USB SSD instead of the SD card.
+- **If containers exit with code 159** (`SIGSYS`): this is a known seccomp/kernel interaction on some Pi kernels, not a bug in this project. `docker-compose.yml` already sets `security_opt: seccomp:unconfined` on the affected services to work around it.
 
-Create `.env` at the **project root** (not inside `poller/`) — copy `.env.example` and fill in your real credentials, region (`EU`/`US`/`CA`), and brand (`hyundai`/`kia`/`genesis`).
+## Known limitations
 
-```bash
-python dump_fields.py
-```
+- **Per-trip energy (kWh used/regenerated on a single trip)** isn't reliably exposed by the underlying API — only distance, speed, and time per trip. Energy is available at daily resolution instead (see the "Daily Energy Breakdown" panels).
+- **`power_consumption_30d` (the 30-day rolling efficiency figure) is a Europe-only feature** of the underlying API, per its own documentation — it may not populate for US/CA accounts.
+- **Lifetime cumulative energy counters** have been reported by some users to show unit/scaling oddities on certain cars — treat them as directional rather than exact.
+- Some fields (energy breakdown, charge limits, departure schedule) vary by brand/region/car generation. Run `dump_fields.py` (see Quick Start) if a panel ever shows unexpected empty data — it'll tell you plainly whether a field is missing for your account rather than failing silently.
 
-This dumps everything to `poller/data/raw-*.json`. Open `raw-vehicle_status.json` and `raw-day_trip_info.json` and compare the actual field names against the `g(vehicle, "...")` calls in `main.py`. If a field always comes back `None`, check the raw dump for the real name and adjust.
+## Ideas for extending this
 
-**One known gap:** per-trip energy consumption (kWh used/recuperated on a *single* trip) isn't reliably exposed by this library's trip API — only distance, average/max speed, drive time, and idle time per trip. Daily energy totals (`vehicle.daily_stats`) — consumed, regenerated, engine/climate/electronics/battery-care breakdown — cover the kWh side, but at daily rather than per-trip resolution. The inspector script tells you plainly if `daily_stats` isn't populating for your account (it may need a "force refresh" call rather than a cached one — check the raw dump).
+- **Cost tracking**: multiply daily `consumed_kwh` by your electricity tariff.
+- **Efficiency vs. temperature**: correlate kWh/100km against outside temperature (e.g. via [Open-Meteo](https://open-meteo.com/), no API key needed).
+- **Alerting**: a Grafana alert if the 12V battery % drops below a threshold, or if SoC hasn't moved in N days (parked-and-forgotten / dead 12V risk).
 
-## 2. Launch the stack
-```bash
-cd ..   # back to project root
-docker compose up -d
-```
-- Grafana: http://localhost:3000 (admin / whatever you set in `.env`)
-- InfluxDB UI: http://localhost:8086
-- Dashboard "Ioniq 5 Monitor" is auto-provisioned under the **Ioniq 5** folder.
+## Project layout
 
-## 3. Polling frequency — be careful
-Frequent live-status polling with a forced refresh can wake the car and drain the 12V battery. `poll_status()` uses `update_vehicle_with_cached_state` (cached only) and defaults to hourly. Trip polling defaults to every 30 minutes.
-
-## What the dashboard shows (your requested metrics)
-- Range (km), speed (avg/max per trip)
-- Daily kWh consumed vs. kWh recuperated (per-trip granularity isn't available — see gap above)
-- Daily kWh/100km efficiency
-- State of charge over time, odometer trend
-
-## Other signals this library exposes as extra widgets
-- **Daily energy breakdown**: engine vs. climate vs. onboard electronics vs. battery-care conditioning.
-- **12V battery %** — worth watching; frequent forced polling is a known cause of 12V drain on these cars.
-- **Charging power (kW)** and plug/charging state.
-- **Location** (lat/lon) — could feed a Grafana Geomap panel.
-- **Doors/trunk/hood open state**, lock status, ignition state.
-- **Climate**: AC on/off, defrost on/off.
-- **Tire pressure warning** flag.
-- **Idle minutes per trip** — a decent proxy for traffic/stop-start driving.
-- **Lifetime cumulative energy consumed/regenerated** — some users have reported unit/scaling oddities in this counter for certain cars (see [this discussion](https://github.com/Hyundai-Kia-Connect/kia_uvo/discussions/817)); treat it as directional rather than exact until you've sanity-checked it against your own odometer/kWh math in `raw-vehicle_status.json`.
-
-## Bug fix: daily energy (kWh consumed/regenerated) wasn't populating
-Two issues, now fixed:
-1. `DailyDrivingStats` uses a field called **`date`** (a Python `datetime` object) — my original code checked for a `yyyymmdd` string field that doesn't exist, so the match against each day silently failed every time and nothing ever got written.
-2. Several users have reported `vehicle.daily_stats` only populates after a **forced** refresh (not the cached update status/trips use). Energy polling now runs on its own schedule (`ENERGY_POLL_MINUTES`, default every 4 hours) and explicitly forces a refresh first, since this is more API-costly than cached polls.
-
-Check `docker compose logs -f poller` after this update — you should see lines like `[energy] daily_stats available for: [...]` and `[energy] 20260716: consumed=... regen=... kwh/100km=...`. If `daily_stats` still comes back empty after a forced refresh, that likely means this account/car doesn't expose it via the API at all (this has been reported for some models) — the log message will say so explicitly rather than failing silently.
-
-## New: Car Location map
-A Geomap panel plots `latitude`/`longitude` from `vehicle_status` (auto-centers on your data, shows up to the last 500 points). Only as fresh as your last status poll — with hourly cached polling this shows where the car was parked/last seen, not a live tracker.
-
-## Dashboard fixes: stacked chart, series continuity, and a working map
-- **Energy Used vs Recuperated per Day** is now a stacked bar chart.
-- **Daily Energy Breakdown** and **Efficiency (kWh/100km) per Day** were splitting into a new color per day instead of one continuous series per metric. Cause: every `energy_daily` point carries a `date` tag in addition to its real timestamp, and Grafana treats each distinct tag value as its own series. Fixed by dropping that tag and regrouping by field in the query, so e.g. "engine_kwh" is now one line/bar across the whole time range instead of one per day.
-- **Geomap** had two bugs: `basemap.type: "default"` isn't a valid Grafana basemap type (valid ones are `carto`, `osm-standard`, `esri-xyz`, `xyz`), and the marker layer's location config used the wrong key names (`latitudeField`/`longitudeField` instead of `latitude`/`longitude`). Both fixed.
-
-## Fixed: geomap "blue box" and only-one-day-of-data
-- **Geomap blue box**: with only 1-2 location points, the `fitData` auto-zoom computed a degenerate bounding box and zoomed in so far that a single marker filled the entire panel. Switched to a fixed initial view (rough Europe center, zoom 4) — pan/zoom manually for now; once more trip history builds up you can switch back to `fitData` if you want. Also switched the basemap to `carto` (Grafana's actual default).
-- **Only one day of energy data**: `poll_energy_daily` was only ever checking a narrow date window tracked by its own state file, rather than everything the API actually returns. Other tools built on this library show the daily-stats endpoint can hand back more than one day per call. Fixed: it now writes out every day present in `vehicle.daily_stats` on each run, instead of only checking a self-tracked window. Writes are idempotent (same date = overwrite), so this is safe to repeat every 4 hours as more days become available.
-- The stacked-bar-per-day view for consumed vs. regenerated kWh was already configured correctly (`stacking: normal` on both series) — once more days land in InfluxDB you should see exactly the "01/07 - 2kW regen, 5kW used / 02/07 - 5kW regen, 10kW used" comparison you described, one stacked bar per day.
-
-## Fixed: poller logs showing up empty
-`docker compose logs -f poller` could show nothing at all even while the poller was working fine in the background. Cause: Python fully buffers `print()` output when stdout isn't attached to a terminal (always true in Docker), so nothing reaches the log driver until the buffer fills up - which might never happen for a long-running loop like this one. Fixed by setting `PYTHONUNBUFFERED=1` and running `python -u main.py` in the Dockerfile, so every print flushes immediately.
-
-## Fixed: timezone bug, trips table ordering, and real charge-time data
-- **`energy_daily` timestamps showing the wrong day**: points were stamped at `23:00 UTC` on their tagged date, which crosses into the next calendar day for UTC+ timezones (e.g. Bulgaria: `23:00 UTC` on the 19th displays as `02:00` on the 20th in local time). Changed to `12:00 UTC` (noon), matching what `trips` already used - noon UTC stays on the same calendar day for any realistic timezone.
-- **Recent Trips table showing older trips while newer ones existed**: the query had no explicit sort, so row order was arbitrary rather than newest-first. Added `sort(columns: ["_time"], desc: true)` plus a row limit.
-- **Time to Full Charge showing 0**: this wasn't actually a bug - `ev_estimated_current_charge_duration` genuinely resets to 0 whenever the car isn't actively charging (confirmed against the library's own community discussions). Replaced it with the three fields that always have a value regardless of charging state: `ev_estimated_fast_charge_duration` (DC), `ev_estimated_station_charge_duration` (AC charging station), and `ev_estimated_portable_charge_duration` (mobile/ICCB charger) - now shown as three separate lines on "Time to Full Charge by Method".
-
-## Ideas not yet wired up but easy to add
-- **Cost tracking**: multiply `consumed_kwh` by your electricity tariff (a day/night split could turn this into a real cost dashboard given your off-peak strategy).
-- **Efficiency vs. temperature**: pull local weather (e.g. Open-Meteo, no key needed) and correlate kWh/100km against outside temp.
-- **Charge target vs. actual SoC**.
-- **Alerting**: Grafana alert if 12V battery % drops below a threshold, or if SoC hasn't changed in N days (car sitting unused / dead 12V risk).
-
-## Files
 ```
 docker-compose.yml
 .env.example
 poller/
   Dockerfile
   requirements.txt
-  common.py            # env loading, region/brand mapping, VehicleManager setup
-  influx_writer.py      # InfluxDB write helper
-  dump_fields.py             # run once - dumps raw vehicle/trip fields
-  main.py                # scheduler: status + trip/energy polling
+  common.py           # env loading, region/brand mapping, VehicleManager setup
+  influx_writer.py     # InfluxDB write helper
+  dump_fields.py            # run once - dumps your account's raw field names
+  main.py               # scheduler: status + trip + energy polling
 grafana/
   provisioning/
     datasources/datasource.yml
     dashboards/dashboards.yml
   dashboards/ioniq5-overview.json
 ```
+
+## Contributing
+
+Issues and pull requests are welcome — especially reports of field names that differ for your brand/region/car generation, since that's the hardest thing to test without a wide range of accounts.
+
+## License
+
+No license file is currently included in this repository, which means default copyright applies (all rights reserved) even though the source is public. If you'd like to reuse or modify this project, please open an issue first, or add a license of your choosing before republishing.
