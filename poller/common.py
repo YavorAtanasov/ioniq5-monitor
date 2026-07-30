@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 from hyundai_kia_connect_api import VehicleManager
 
@@ -29,7 +30,12 @@ BRAND_MAP = {
 def require_env():
     missing = [
         k
-        for k in ("BLUELINK_USERNAME", "BLUELINK_PASSWORD", "BLUELINK_REGION", "BLUELINK_BRAND")
+        for k in (
+            "BLUELINK_USERNAME",
+            "BLUELINK_PASSWORD",
+            "BLUELINK_REGION",
+            "BLUELINK_BRAND",
+        )
         if not os.environ.get(k)
     ]
     if missing:

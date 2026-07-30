@@ -1,5 +1,6 @@
 import os
 from datetime import datetime, timezone
+
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
 
@@ -39,4 +40,6 @@ def write_point(measurement, fields, tags=None, timestamp=None, vehicle_tag=None
     point = point.time(timestamp, WritePrecision.MS)
 
     write_api = _get_write_api()
-    write_api.write(bucket=os.environ["INFLUX_BUCKET"], org=os.environ["INFLUX_ORG"], record=point)
+    write_api.write(
+        bucket=os.environ["INFLUX_BUCKET"], org=os.environ["INFLUX_ORG"], record=point
+    )
