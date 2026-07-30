@@ -11,6 +11,7 @@ import dataclasses
 import json
 from datetime import datetime
 from pathlib import Path
+import traceback
 
 from common import get_vehicle_manager, get_target_vehicle
 
@@ -51,15 +52,21 @@ def main():
     try:
         vm.update_month_trip_info(vehicle.id, yyyymm)
         dump("month_trip_info", to_dict(vehicle.month_trip_info))
-    except Exception as e:
-        print(f"⚠️  update_month_trip_info failed: {e}")
+    except Exception as e:  # broad catch to keep polling resilient; re-raises interrupts
+        if isinstance(e, (KeyboardInterrupt, SystemExit)):
+            raise
+        print(f"⚠️  update_month_trip_info failed: {type(e).__name__}: {e}")
+        traceback.print_exc()
         dump("month_trip_info", {"error": str(e)})
 
     try:
         vm.update_day_trip_info(vehicle.id, yyyymmdd)
         dump("day_trip_info", to_dict(vehicle.day_trip_info))
-    except Exception as e:
-        print(f"⚠️  update_day_trip_info failed: {e}")
+    except Exception as e:  # broad catch to keep polling resilient; re-raises interrupts
+        if isinstance(e, (KeyboardInterrupt, SystemExit)):
+            raise
+        print(f"⚠️  update_day_trip_info failed: {type(e).__name__}: {e}")
+        traceback.print_exc()
         dump("day_trip_info", {"error": str(e)})
 
     # Daily energy breakdown (engine/climate/electronics/battery-care/regen).
