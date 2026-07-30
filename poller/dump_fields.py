@@ -9,9 +9,9 @@ field names main.py assumes actually exist for your account.
 """
 import dataclasses
 import json
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
-import traceback
 
 from common import get_target_vehicle, get_vehicle_manager
 
