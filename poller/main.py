@@ -40,7 +40,9 @@ def g(obj, name, default=None):
 # ---------------- STATUS POLL ----------------
 def poll_status(vm, vehicle):
     vm.check_and_refresh_token()
-    vm.update_vehicle_with_cached_state(vehicle.id)  # cached only - doesn't wake the car
+    vm.update_vehicle_with_cached_state(
+        vehicle.id
+    )  # cached only - doesn't wake the car
 
     fields = {
         "soc_pct": g(vehicle, "ev_battery_percentage"),
@@ -67,12 +69,18 @@ def poll_status(vm, vehicle):
         "latitude": g(vehicle, "location_latitude"),
         "longitude": g(vehicle, "location_longitude"),
         # lifetime cumulative counters, if exposed for this brand/region
-        "lifetime_energy_consumed_kwh": _wh_to_kwh(g(vehicle, "total_energy_consumption")),
-        "lifetime_energy_regen_kwh": _wh_to_kwh(g(vehicle, "total_energy_regeneration")),
+        "lifetime_energy_consumed_kwh": _wh_to_kwh(
+            g(vehicle, "total_energy_consumption")
+        ),
+        "lifetime_energy_regen_kwh": _wh_to_kwh(
+            g(vehicle, "total_energy_regeneration")
+        ),
     }
 
     write_point("vehicle_status", fields)
-    print(f"[status] soc={fields['soc_pct']} range={fields['range_km']} odo={fields['odometer_km']}")
+    print(
+        f"[status] soc={fields['soc_pct']} range={fields['range_km']} odo={fields['odometer_km']}"
+    )
 
 
 def _wh_to_kwh(value):
@@ -99,7 +107,9 @@ def poll_trips(vm, vehicle, state):
             vm.update_day_trip_info(vehicle.id, yyyymmdd)
             day_info = g(vehicle, "day_trip_info")
             trip_list = g(day_info, "trip_list", []) if day_info else []
-            day_ts = datetime.strptime(yyyymmdd, "%Y%m%d").replace(hour=0, tzinfo=timezone.utc)
+            day_ts = datetime.strptime(yyyymmdd, "%Y%m%d").replace(
+                hour=0, tzinfo=timezone.utc
+            )
             for idx, trip in enumerate(trip_list):
                 fields = {
                     "distance_km": g(trip, "distance"),
@@ -108,12 +118,21 @@ def poll_trips(vm, vehicle, state):
                     "avg_speed_kmh": g(trip, "avg_speed"),
                     "max_speed_kmh": g(trip, "max_speed"),
                 }
-                write_point("trips", fields, tags={"date": yyyymmdd, "trip_index": idx}, timestamp=day_ts)
+                write_point(
+                    "trips",
+                    fields,
+                    tags={"date": yyyymmdd, "trip_index": idx},
+                    timestamp=day_ts,
+                )
             # Always log, even when empty - a silent "nothing to write" here
             # was previously indistinguishable from a broken query.
-            print(f"[trips] {yyyymmdd}: day_info={'present' if day_info else 'MISSING'}, "
-                  f"trip_list has {len(trip_list)} entr{'y' if len(trip_list) == 1 else 'ies'}")
-        except Exception as e:  # broad catch to keep polling resilient; re-raises interrupts
+            print(
+                f"[trips] {yyyymmdd}: day_info={'present' if day_info else 'MISSING'}, "
+                f"trip_list has {len(trip_list)} entr{'y' if len(trip_list) == 1 else 'ies'}"
+            )
+        except (
+            Exception
+        ) as e:  # broad catch to keep polling resilient; re-raises interrupts
             if isinstance(e, (KeyboardInterrupt, SystemExit)):
                 raise
             print(f"[trips] {yyyymmdd} FAILED: {type(e).__name__}: {e}")
@@ -150,14 +169,18 @@ def poll_energy_daily(vm, vehicle, state):
     except Exception as e:  # broad catch to keep process running; re-raises interrupts
         if isinstance(e, (KeyboardInterrupt, SystemExit)):
             raise
-        print(f"force refresh for daily energy failed, continuing with cached data: {type(e).__name__}: {e}")
+        print(
+            f"force refresh for daily energy failed, continuing with cached data: {type(e).__name__}: {e}"
+        )
         traceback.print_exc()
 
     daily_stats = g(vehicle, "daily_stats", []) or []
     available_dates = [_stat_date_str(d) for d in daily_stats]
     if not daily_stats:
-        print("[energy] vehicle.daily_stats is empty after force refresh - "
-              "this brand/region/account may not expose it, or needs update_month_trip_info first.")
+        print(
+            "[energy] vehicle.daily_stats is empty after force refresh - "
+            "this brand/region/account may not expose it, or needs update_month_trip_info first."
+        )
         return
     else:
         print(f"[energy] daily_stats available for: {available_dates}")
@@ -175,9 +198,13 @@ def poll_energy_daily(vm, vehicle, state):
         consumed_kwh = _wh_to_kwh(g(match, "total_consumed"))
         regen_kwh = _wh_to_kwh(g(match, "regenerated_energy"))
         kwh_per_100km = (
-            (consumed_kwh / distance) * 100 if consumed_kwh is not None and distance else None
+            (consumed_kwh / distance) * 100
+            if consumed_kwh is not None and distance
+            else None
         )
-        day_ts = datetime.strptime(yyyymmdd, "%Y%m%d").replace(hour=0, tzinfo=timezone.utc)
+        day_ts = datetime.strptime(yyyymmdd, "%Y%m%d").replace(
+            hour=0, tzinfo=timezone.utc
+        )
         write_point(
             "energy_daily",
             {
@@ -193,7 +220,9 @@ def poll_energy_daily(vm, vehicle, state):
             tags={"date": yyyymmdd},
             timestamp=day_ts,
         )
-        print(f"[energy] {yyyymmdd}: consumed={consumed_kwh} regen={regen_kwh} kwh/100km={kwh_per_100km}")
+        print(
+            f"[energy] {yyyymmdd}: consumed={consumed_kwh} regen={regen_kwh} kwh/100km={kwh_per_100km}"
+        )
 
 
 # ---------------- SCHEDULER ----------------
@@ -202,7 +231,10 @@ def main():
     state = load_state()
     print("Loaded local state, connecting to Bluelink/Kia Connect...", flush=True)
     vm = get_vehicle_manager()
-    print("VehicleManager created, logging in (this can take a few seconds)...", flush=True)
+    print(
+        "VehicleManager created, logging in (this can take a few seconds)...",
+        flush=True,
+    )
     vm.check_and_refresh_token()
     print("Logged in, fetching vehicle list...", flush=True)
     vm.update_all_vehicles_with_cached_state()
@@ -211,12 +243,16 @@ def main():
 
     status_minutes = int(os.environ.get("STATUS_POLL_MINUTES", "60"))
     trip_minutes = int(os.environ.get("TRIP_POLL_MINUTES", "30"))
-    energy_minutes = int(os.environ.get("ENERGY_POLL_MINUTES", "240"))  # forces a refresh - keep infrequent
+    energy_minutes = int(
+        os.environ.get("ENERGY_POLL_MINUTES", "240")
+    )  # forces a refresh - keep infrequent
 
     def run_status():
         try:
             poll_status(vm, vehicle)
-        except Exception as e:  # broad catch to keep polling resilient; re-raises interrupts
+        except (
+            Exception
+        ) as e:  # broad catch to keep polling resilient; re-raises interrupts
             if isinstance(e, (KeyboardInterrupt, SystemExit)):
                 raise
             print(f"poll_status error: {type(e).__name__}: {e}")
@@ -225,7 +261,9 @@ def main():
     def run_trips():
         try:
             poll_trips(vm, vehicle, state)
-        except Exception as e:  # broad catch to keep polling resilient; re-raises interrupts
+        except (
+            Exception
+        ) as e:  # broad catch to keep polling resilient; re-raises interrupts
             if isinstance(e, (KeyboardInterrupt, SystemExit)):
                 raise
             print(f"poll_trips error: {type(e).__name__}: {e}")
@@ -234,7 +272,9 @@ def main():
     def run_energy():
         try:
             poll_energy_daily(vm, vehicle, state)
-        except Exception as e:  # broad catch to keep polling resilient; re-raises interrupts
+        except (
+            Exception
+        ) as e:  # broad catch to keep polling resilient; re-raises interrupts
             if isinstance(e, (KeyboardInterrupt, SystemExit)):
                 raise
             print(f"poll_energy_daily error: {type(e).__name__}: {e}")
@@ -248,7 +288,9 @@ def main():
     schedule.every(trip_minutes).minutes.do(run_trips)
     schedule.every(energy_minutes).minutes.do(run_energy)
 
-    print(f"Scheduled: status every {status_minutes}m, trips every {trip_minutes}m, energy (forced) every {energy_minutes}m")
+    print(
+        f"Scheduled: status every {status_minutes}m, trips every {trip_minutes}m, energy (forced) every {energy_minutes}m"
+    )
     while True:
         schedule.run_pending()
         time.sleep(5)

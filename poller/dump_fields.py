@@ -7,6 +7,7 @@ breakdown/trip lists populate) can vary by brand/region/car generation. This
 dumps everything it can reach to data/raw-*.json so you can confirm the
 field names main.py assumes actually exist for your account.
 """
+
 import dataclasses
 import json
 import traceback
@@ -41,7 +42,9 @@ def main():
     vm.update_all_vehicles_with_cached_state()
 
     vehicle = get_target_vehicle(vm)
-    print(f"Connected to vehicle: {getattr(vehicle, 'name', vehicle.id)} (id={vehicle.id})")
+    print(
+        f"Connected to vehicle: {getattr(vehicle, 'name', vehicle.id)} (id={vehicle.id})"
+    )
 
     dump("vehicle_status", to_dict(vehicle))
 
@@ -52,7 +55,9 @@ def main():
     try:
         vm.update_month_trip_info(vehicle.id, yyyymm)
         dump("month_trip_info", to_dict(vehicle.month_trip_info))
-    except Exception as e:  # broad catch to keep polling resilient; re-raises interrupts
+    except (
+        Exception
+    ) as e:  # broad catch to keep polling resilient; re-raises interrupts
         if isinstance(e, (KeyboardInterrupt, SystemExit)):
             raise
         print(f"⚠️  update_month_trip_info failed: {type(e).__name__}: {e}")
@@ -62,7 +67,9 @@ def main():
     try:
         vm.update_day_trip_info(vehicle.id, yyyymmdd)
         dump("day_trip_info", to_dict(vehicle.day_trip_info))
-    except Exception as e:  # broad catch to keep polling resilient; re-raises interrupts
+    except (
+        Exception
+    ) as e:  # broad catch to keep polling resilient; re-raises interrupts
         if isinstance(e, (KeyboardInterrupt, SystemExit)):
             raise
         print(f"⚠️  update_day_trip_info failed: {type(e).__name__}: {e}")
@@ -77,10 +84,14 @@ def main():
     if daily_stats:
         dump("daily_stats", [to_dict(d) for d in daily_stats])
     else:
-        print("ℹ️  vehicle.daily_stats is empty/absent - daily energy breakdown may need a force refresh, "
-              "or may not be exposed for this brand/region. Check raw-vehicle_status.json for alternatives.")
+        print(
+            "ℹ️  vehicle.daily_stats is empty/absent - daily energy breakdown may need a force refresh, "
+            "or may not be exposed for this brand/region. Check raw-vehicle_status.json for alternatives."
+        )
 
-    print("\nDone. Open data/raw-*.json and compare field names against common.py / main.py before trusting the dashboards.")
+    print(
+        "\nDone. Open data/raw-*.json and compare field names against common.py / main.py before trusting the dashboards."
+    )
 
 
 if __name__ == "__main__":

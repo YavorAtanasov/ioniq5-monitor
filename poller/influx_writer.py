@@ -40,4 +40,6 @@ def write_point(measurement, fields, tags=None, timestamp=None, vehicle_tag=None
     point = point.time(timestamp, WritePrecision.MS)
 
     write_api = _get_write_api()
-    write_api.write(bucket=os.environ["INFLUX_BUCKET"], org=os.environ["INFLUX_ORG"], record=point)
+    write_api.write(
+        bucket=os.environ["INFLUX_BUCKET"], org=os.environ["INFLUX_ORG"], record=point
+    )
