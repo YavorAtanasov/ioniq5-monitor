@@ -1,0 +1,27 @@
+name: "CodeQL"
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '0 3 * * 1' # Weekly on Monday at 03:00 UTC
+
+jobs:
+  analyze:
+    name: Analyze with CodeQL
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: python
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v2
+
+      - name: Run CodeQL analysis
+        uses: github/codeql-action/analyze@v2
+
