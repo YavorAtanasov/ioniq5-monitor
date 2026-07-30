@@ -9,11 +9,11 @@ field names main.py assumes actually exist for your account.
 """
 import dataclasses
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 import traceback
 
-from common import get_vehicle_manager, get_target_vehicle
+from common import get_target_vehicle, get_vehicle_manager
 
 OUT_DIR = Path(__file__).resolve().parent / "data"
 OUT_DIR.mkdir(exist_ok=True)
@@ -21,7 +21,7 @@ OUT_DIR.mkdir(exist_ok=True)
 
 def dump(name, data):
     path = OUT_DIR / f"raw-{name}.json"
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, default=str)
     print(f"Wrote {path}")
 
@@ -45,7 +45,7 @@ def main():
 
     dump("vehicle_status", to_dict(vehicle))
 
-    today = datetime.now()
+    today = datetime.now(timezone.utc)
     yyyymm = today.strftime("%Y%m")
     yyyymmdd = today.strftime("%Y%m%d")
 
