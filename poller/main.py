@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import schedule
+import traceback
 
 from common import get_vehicle_manager, get_target_vehicle
 from influx_writer import write_point
@@ -16,7 +17,15 @@ STATE_FILE.parent.mkdir(exist_ok=True)
 def load_state():
     try:
         return json.loads(STATE_FILE.read_text())
-    except Exception:
+    except (FileNotFoundError, json.JSONDecodeError):
+        # state file missing or invalid -> start fresh
+        return {"last_trip_date": None}
+    except Exception as e:
+        # Unexpected error reading state: log and return safe default
+        if isinstance(e, (KeyboardInterrupt, SystemExit)):
+            raise
+        print(f"Error reading state file: {type(e).__name__}: {e}")
+        traceback.print_exc()
         return {"last_trip_date": None}
 
 
@@ -78,7 +87,7 @@ def _wh_to_kwh(value):
 
 # ---------------- TRIPS POLL (distance/speed/time - cached, safe to poll often) ----------------
 def poll_trips(vm, vehicle, state):
-    today = datetime.now()
+    today = datetime.now(timezone.utc)
     if state.get("last_trip_date"):
         start = datetime.fromisoformat(state["last_trip_date"])
     else:
@@ -91,7 +100,7 @@ def poll_trips(vm, vehicle, state):
             vm.update_day_trip_info(vehicle.id, yyyymmdd)
             day_info = g(vehicle, "day_trip_info")
             trip_list = g(day_info, "trip_list", []) if day_info else []
-            day_ts = datetime.strptime(yyyymmdd, "%Y%m%d").replace(hour=00, tzinfo=timezone.utc)
+            day_ts = datetime.strptime(yyyymmdd, "%Y%m%d").replace(hour=0, tzinfo=timezone.utc)
             for idx, trip in enumerate(trip_list):
                 fields = {
                     "distance_km": g(trip, "distance"),
@@ -99,17 +108,17 @@ def poll_trips(vm, vehicle, state):
                     "idle_min": g(trip, "idle_time"),
                     "avg_speed_kmh": g(trip, "avg_speed"),
                     "max_speed_kmh": g(trip, "max_speed"),
-                    # NOTE: per-trip energy (kWh consumed/regenerated) is not
-                    # reliably exposed by this library's TripInfo - only
-                    # distance/speed/time. poll_energy_daily() below covers energy.
                 }
                 write_point("trips", fields, tags={"date": yyyymmdd, "trip_index": idx}, timestamp=day_ts)
             # Always log, even when empty - a silent "nothing to write" here
             # was previously indistinguishable from a broken query.
             print(f"[trips] {yyyymmdd}: day_info={'present' if day_info else 'MISSING'}, "
                   f"trip_list has {len(trip_list)} entr{'y' if len(trip_list) == 1 else 'ies'}")
-        except Exception as e:
+        except Exception as e:  # broad catch to keep polling resilient; re-raises interrupts
+            if isinstance(e, (KeyboardInterrupt, SystemExit)):
+                raise
             print(f"[trips] {yyyymmdd} FAILED: {type(e).__name__}: {e}")
+            traceback.print_exc()
 
         date += timedelta(days=1)
 
@@ -139,8 +148,11 @@ def poll_energy_daily(vm, vehicle, state):
             vm.force_refresh_vehicle_state(vehicle.id)
         else:
             vm.force_refresh_all_vehicles_states()
-    except Exception as e:
-        print(f"force refresh for daily energy failed, continuing with cached data: {e}")
+    except Exception as e:  # broad catch to keep process running; re-raises interrupts
+        if isinstance(e, (KeyboardInterrupt, SystemExit)):
+            raise
+        print(f"force refresh for daily energy failed, continuing with cached data: {type(e).__name__}: {e}")
+        traceback.print_exc()
 
     daily_stats = g(vehicle, "daily_stats", []) or []
     available_dates = [_stat_date_str(d) for d in daily_stats]
@@ -166,7 +178,7 @@ def poll_energy_daily(vm, vehicle, state):
         kwh_per_100km = (
             (consumed_kwh / distance) * 100 if consumed_kwh is not None and distance else None
         )
-        day_ts = datetime.strptime(yyyymmdd, "%Y%m%d").replace(hour=00, tzinfo=timezone.utc)
+        day_ts = datetime.strptime(yyyymmdd, "%Y%m%d").replace(hour=0, tzinfo=timezone.utc)
         write_point(
             "energy_daily",
             {
@@ -205,20 +217,29 @@ def main():
     def run_status():
         try:
             poll_status(vm, vehicle)
-        except Exception as e:
-            print(f"poll_status error: {e}")
+        except Exception as e:  # broad catch to keep polling resilient; re-raises interrupts
+            if isinstance(e, (KeyboardInterrupt, SystemExit)):
+                raise
+            print(f"poll_status error: {type(e).__name__}: {e}")
+            traceback.print_exc()
 
     def run_trips():
         try:
             poll_trips(vm, vehicle, state)
-        except Exception as e:
-            print(f"poll_trips error: {e}")
+        except Exception as e:  # broad catch to keep polling resilient; re-raises interrupts
+            if isinstance(e, (KeyboardInterrupt, SystemExit)):
+                raise
+            print(f"poll_trips error: {type(e).__name__}: {e}")
+            traceback.print_exc()
 
     def run_energy():
         try:
             poll_energy_daily(vm, vehicle, state)
-        except Exception as e:
-            print(f"poll_energy_daily error: {e}")
+        except Exception as e:  # broad catch to keep polling resilient; re-raises interrupts
+            if isinstance(e, (KeyboardInterrupt, SystemExit)):
+                raise
+            print(f"poll_energy_daily error: {type(e).__name__}: {e}")
+            traceback.print_exc()
 
     run_status()
     run_trips()
@@ -236,13 +257,15 @@ def main():
 
 if __name__ == "__main__":
     import sys
-    import traceback
+
     try:
         main()
     except SystemExit as e:
         print(f"Exiting: {e}", flush=True)
         sys.exit(1)
-    except Exception:
+    except Exception as e:
+        if isinstance(e, (KeyboardInterrupt, SystemExit)):
+            raise
         print("FATAL - unhandled exception:", flush=True)
         traceback.print_exc()
         sys.exit(1)
