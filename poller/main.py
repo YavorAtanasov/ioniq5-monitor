@@ -6,7 +6,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import schedule
-
 from common import get_target_vehicle, get_vehicle_manager
 from influx_writer import write_point
 
