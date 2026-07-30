@@ -10,6 +10,13 @@ jobs:
   analyze:
     name: Analyze with CodeQL
     runs-on: ubuntu-latest
+    permissions:
+      # Required to upload CodeQL SARIF results to GitHub Security tab
+      security-events: write
+      # Required for fetching repo content
+      contents: read
+      # Required if analyzing actions/workflows (optional for pure Python)
+      actions: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
