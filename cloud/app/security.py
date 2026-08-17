@@ -43,10 +43,12 @@ def generate_agent_key() -> str:
 def hash_agent_key(key: str) -> str:
     """Peppered SHA-256.
 
-    Agent keys are 256 bits of randomness, so they don't need a slow hash the
-    way user-chosen passwords do - and ingest verifies one on every request.
+    Deliberately not bcrypt: these are server-generated 256-bit tokens, not
+    user-chosen passwords, so they aren't guessable and don't need a slow hash -
+    and unlike a password, one is verified on every ingest request, by hash
+    lookup rather than by comparing against each stored row.
     """
-    return hmac.new(
+    return hmac.new(  # codeql[py/weak-sensitive-data-hashing]
         get_settings().api_key_pepper.encode(), key.encode(), hashlib.sha256
     ).hexdigest()
 
