@@ -36,6 +36,12 @@ Bluelink / Kia Connect account
 - **InfluxDB** — stores everything as time-series data.
 - **Grafana** — a pre-provisioned dashboard, ready as soon as the stack starts.
 
+The poller can write to more than one destination. Alongside a local InfluxDB it
+can forward readings to a hosted API (see [`cloud/`](cloud/README.md)) so a
+dashboard is reachable from anywhere - while your Bluelink credentials never
+leave your own hardware. Neither is required: leave `CLOUD_INGEST_URL` unset and
+nothing changes.
+
 Everything runs in Docker, on your own machine (a Raspberry Pi, a home server, a NAS, whatever you've got).
 
 ## Before you start: a note on API rate limits
@@ -110,6 +116,8 @@ It can take a few polling cycles (up to an hour, by default) before the dashboar
 | `TRIP_POLL_MINUTES` | How often to check for new trips (cached, default 30) |
 | `ENERGY_POLL_MINUTES` | How often to pull the daily energy breakdown (forces a refresh, default 240 — see the rate-limit note above) |
 | `INFLUX_*` / `GRAFANA_*` | Storage/dashboard credentials — the defaults in `.env.example` work out of the box for local/home use, but change the passwords if this will be reachable from outside your LAN |
+| `CLOUD_INGEST_URL` / `CLOUD_AGENT_KEY` | (Optional) forward readings to a hosted dashboard. Written for you by `poller/enroll.py`; see [`cloud/`](cloud/README.md) |
+| `SINKS` | (Optional) `influx`, `cloud`, or both. Defaults to whichever are configured |
 
 ## Running on a Raspberry Pi
 
@@ -148,7 +156,8 @@ poller/
   Dockerfile
   requirements.txt
   common.py           # env loading, region/brand mapping, VehicleManager setup
-  influx_writer.py     # InfluxDB write helper
+  sinks.py            # where readings go: local InfluxDB and/or the hosted API
+  enroll.py           # one-time: trade an enrollment code for an agent API key
   dump_fields.py            # run once - dumps your account's raw field names
   main.py               # scheduler: status + trip + energy polling
 grafana/
@@ -156,6 +165,10 @@ grafana/
     datasources/datasource.yml
     dashboards/dashboards.yml
   dashboards/ioniq5-overview.json
+cloud/                # optional hosted API: multi-tenant ingest + query
+  app/
+  tests/
+docker-compose.cloud.yml
 ```
 
 ## Contributing

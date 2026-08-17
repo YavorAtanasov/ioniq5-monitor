@@ -1,3 +1,8 @@
 .env
+cloud/.env
 ._*
 poller/data/*.json
+poller/data/spool.jsonl
+.venv/
+__pycache__/
+.pytest_cache/

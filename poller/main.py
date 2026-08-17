@@ -7,7 +7,7 @@ from pathlib import Path
 
 import schedule
 from common import get_target_vehicle, get_vehicle_manager
-from influx_writer import write_point
+from sinks import write_reading
 
 STATE_FILE = Path(__file__).resolve().parent / "data" / "state.json"
 STATE_FILE.parent.mkdir(exist_ok=True)
@@ -77,7 +77,7 @@ def poll_status(vm, vehicle):
         ),
     }
 
-    write_point("vehicle_status", fields)
+    write_reading("vehicle_status", fields)
     print(
         f"[status] soc={fields['soc_pct']} range={fields['range_km']} odo={fields['odometer_km']}"
     )
@@ -118,7 +118,7 @@ def poll_trips(vm, vehicle, state):
                     "avg_speed_kmh": g(trip, "avg_speed"),
                     "max_speed_kmh": g(trip, "max_speed"),
                 }
-                write_point(
+                write_reading(
                     "trips",
                     fields,
                     tags={"date": yyyymmdd, "trip_index": idx},
@@ -205,7 +205,7 @@ def poll_energy_daily(vm, vehicle, state):
         day_ts = datetime.strptime(yyyymmdd, "%Y%m%d").replace(
             hour=0, tzinfo=timezone.utc
         )
-        write_point(
+        write_reading(
             "energy_daily",
             {
                 "distance_km": distance,
