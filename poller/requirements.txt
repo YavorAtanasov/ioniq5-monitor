@@ -1,4 +1,4 @@
 hyundai_kia_connect_api>=4.26.3
 influxdb-client>=1.50.0
-python-dotenv>=1.2.2
+python-dotenv>=1.2.3
 schedule>=1.2.2
