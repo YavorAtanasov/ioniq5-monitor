@@ -23,6 +23,9 @@ A pre-built Grafana dashboard with:
 
 All of it lives in your own InfluxDB instance, so it's yours to keep, query, or export — no third party ever sees it.
 
+<img width="3024" height="5980" alt="image" src="https://github.com/user-attachments/assets/ee64b98b-f827-46b7-9da4-c6fe6a0b8170" />
+
+
 ## How it works
 
 ```
