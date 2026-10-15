@@ -2,7 +2,7 @@ import json
 import os
 import time
 import traceback
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import schedule
@@ -94,7 +94,7 @@ def _wh_to_kwh(value):
 
 # ---------------- TRIPS POLL (distance/speed/time - cached, safe to poll often) ----------------
 def poll_trips(vm, vehicle, state):
-    today = datetime.now(timezone.utc)
+    today = datetime.now(UTC)
     if state.get("last_trip_date"):
         start = datetime.fromisoformat(state["last_trip_date"])
     else:
@@ -107,9 +107,7 @@ def poll_trips(vm, vehicle, state):
             vm.update_day_trip_info(vehicle.id, yyyymmdd)
             day_info = g(vehicle, "day_trip_info")
             trip_list = g(day_info, "trip_list", []) if day_info else []
-            day_ts = datetime.strptime(yyyymmdd, "%Y%m%d").replace(
-                hour=0, tzinfo=timezone.utc
-            )
+            day_ts = datetime.strptime(yyyymmdd, "%Y%m%d").replace(hour=0, tzinfo=UTC)
             for idx, trip in enumerate(trip_list):
                 fields = {
                     "distance_km": g(trip, "distance"),
@@ -202,9 +200,7 @@ def poll_energy_daily(vm, vehicle, state):
             if consumed_kwh is not None and distance
             else None
         )
-        day_ts = datetime.strptime(yyyymmdd, "%Y%m%d").replace(
-            hour=0, tzinfo=timezone.utc
-        )
+        day_ts = datetime.strptime(yyyymmdd, "%Y%m%d").replace(hour=0, tzinfo=UTC)
         write_point(
             "energy_daily",
             {
