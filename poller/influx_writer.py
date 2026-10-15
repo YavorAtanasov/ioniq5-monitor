@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
@@ -22,7 +22,7 @@ def _get_write_api():
 
 def write_point(measurement, fields, tags=None, timestamp=None, vehicle_tag=None):
     tags = tags or {}
-    timestamp = timestamp or datetime.now(timezone.utc)
+    timestamp = timestamp or datetime.now(UTC)
     vehicle_tag = vehicle_tag or os.environ.get("BLUELINK_VIN", "default")
 
     point = Point(measurement).tag("vehicle", vehicle_tag)

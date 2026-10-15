@@ -11,7 +11,7 @@ field names main.py assumes actually exist for your account.
 import dataclasses
 import json
 import traceback
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from common import get_target_vehicle, get_vehicle_manager
@@ -48,7 +48,7 @@ def main():
 
     dump("vehicle_status", to_dict(vehicle))
 
-    today = datetime.now(timezone.utc)
+    today = datetime.now(UTC)
     yyyymm = today.strftime("%Y%m")
     yyyymmdd = today.strftime("%Y%m%d")
 
