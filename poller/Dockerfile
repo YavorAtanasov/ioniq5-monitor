@@ -8,6 +8,8 @@ WORKDIR /app
 # long-running process like this that never exits on its own.
 ENV PYTHONUNBUFFERED=1
 
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential
+
 # piwheels hosts prebuilt ARM wheels - without this, pip has to compile some
 # dependencies from source on the Pi's CPU, which is slow and can time out
 # on lower-end models. Harmless on amd64 too: pip just won't find matches
