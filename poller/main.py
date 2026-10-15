@@ -1,14 +1,15 @@
-from datetime import UTC, datetime, timedelta
 import json
 import os
-from pathlib import Path
 import time
 import traceback
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import schedule
 
 from common import get_target_vehicle, get_vehicle_manager
 from influx_writer import write_point
+
 
 STATE_FILE = Path(__file__).resolve().parent / "data" / "state.json"
 STATE_FILE.parent.mkdir(exist_ok=True)
